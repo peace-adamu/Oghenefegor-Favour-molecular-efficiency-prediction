@@ -4,7 +4,6 @@ from typing import Any
 import joblib
 import numpy as np
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 from sklearn.metrics import accuracy_score, f1_score, mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
 
@@ -186,20 +185,26 @@ def render_prediction_card(result: pd.Series):
 
 def render_explanation(frame: pd.DataFrame):
     st.subheader("Descriptor contribution analysis")
-    st.caption("Directional feature-importance proxy from the Gradient Boosting classifier. Positive bars indicate values above the reference median; negative bars indicate values below it. This is not a per-row SHAP decomposition.")
+    st.caption("Directional feature-importance proxy from the Gradient Boosting classifier. Positive values indicate descriptors above the reference median; negative values indicate descriptors below it. This is not a per-row SHAP decomposition.")
     explanation = importance_frame(frame)
-    fig = px.bar(
-        explanation,
-        x="Directional contribution",
-        y="Descriptor",
-        orientation="h",
-        color="Directional contribution",
-        color_continuous_scale=["#c2415b", "#d9dee7", "#198754"],
-        labels={"Directional contribution": "Signed importance proxy", "Descriptor": ""},
-        hover_data={"Feature": True, "Importance": ":.4f"},
+    explanation["Direction"] = np.where(
+        explanation["Directional contribution"] >= 0,
+        "Positive / above reference median",
+        "Negative / below reference median",
     )
-    fig.update_layout(height=440, coloraxis_showscale=False, margin=dict(l=10, r=10, t=20, b=20))
-    st.plotly_chart(fig, use_container_width=True)
+    display = explanation[["Descriptor", "Importance", "Directional contribution", "Direction"]].rename(
+        columns={
+            "Descriptor": "Descriptor",
+            "Importance": "Global importance",
+            "Directional contribution": "Signed proxy",
+            "Direction": "Interpretive direction",
+        }
+    )
+    st.dataframe(
+        display.style.format({"Global importance": "{:.4f}", "Signed proxy": "{:+.4f}"}),
+        use_container_width=True,
+        hide_index=True,
+    )
 
 
 # -----------------------------
@@ -219,8 +224,35 @@ st.sidebar.caption("Both models use the same 11 descriptors.")
 # Prediction page
 # -----------------------------
 if page == "Prediction":
-    st.title("Molecular Efficiency Prediction")
+    st.markdown(
+        """
+        <div style='text-align:center; padding:0.7rem 0 1.2rem 0;'>
+            <div style='font-size:0.82rem; font-weight:700; letter-spacing:0.16em; color:#667085;'>INTRODUCTION</div>
+            <div style='font-size:1.05rem; margin-top:0.8rem; line-height:1.55;'>
+                <b>This project is owned by:</b><br>
+                Ezere Oghenefegor Favour<br>
+                <span style='color:#475467;'>Final Year Student, Department of Chemical Engineering</span><br>
+                <span style='color:#475467;'>Federal University of Petroleum Resources, Effurun (FUPRE)</span><br>
+                <span style='font-size:0.92rem; color:#667085;'>In partial fulfillment of the requirements for the award of Bachelor of Engineering (B.Eng) Degree</span>
+            </div>
+            <div style='font-size:2rem; font-weight:800; letter-spacing:0.04em; color:#16324f; margin-top:1.25rem;'>MOLECULAR EFFICIENCY PREDICTION</div>
+            <div style='font-size:1.05rem; color:#475467; margin-top:0.35rem;'>An intelligent application for predicting molecular inhibitor activity and efficiency using machine learning models.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.write("Enter molecular descriptors, choose a reference molecule, or upload a batch CSV to obtain an inhibitor verdict, confidence, efficiency estimate, and descriptor explanation.")
+
+    with st.expander("About this project and how to use this app", expanded=True):
+        st.markdown(
+            """
+            **Project overview.** This application supports a machine-learning workflow for screening corrosion-inhibitor molecules. The underlying study assembled and quality-checked **80 molecules** from four chemical groups: Organic, Green Inhibitor, Ionic Liquid, and Inorganic. Inhibition Efficiency (**IE%**) is the continuous outcome of interest; molecules with IE% of at least 85% are treated as the high-inhibition class in the binary classification workflow.
+
+            **What the models do.** The Gradient Boosting classifier estimates whether an input is an **Inhibitor** or **Non-Inhibitor** and reports its probability for the predicted class. The Random Forest regressor estimates the molecule's individual IE% as a continuous value. Both models use the same 11 selected descriptors after the notebook's descriptor-selection and collinearity analysis: ionization potential, chemical hardness, electrophilicity index, dipole moment, molecular weight, aromatic-ring count, nitrogen count, oxygen count, sulfur count, fluorine count, and LogP.
+
+            **Recommended workflow.** Start with **Preloaded Molecule** to explore the study examples, use **Manual Entry** for a new descriptor profile, or choose **Batch CSV Upload** for several molecules. The result card gives the main verdict and efficiency estimate. The contribution table provides a compact feature-importance view to help interpret the prediction; it should be used as model guidance, not as experimental confirmation or a replacement for laboratory or molecular-dynamics validation.
+            """
+        )
 
     input_mode = st.radio("Input method", ["Manual Entry", "Preloaded Molecule", "Batch CSV Upload"], horizontal=True)
 
@@ -325,11 +357,6 @@ elif page == "Model Performance":
             ]
         )
         st.dataframe(metrics.style.format({"Accuracy": "{:.3f}", "F1 Score": "{:.3f}", "AUC-ROC": "{:.3f}", "MAE": "{:.3f}", "R²": "{:.3f}"}, na_rep="—"), use_container_width=True, hide_index=True)
-        st.subheader("Reference-set classification metrics")
-        metric_plot = metrics.iloc[[0]][["Accuracy", "F1 Score", "AUC-ROC"]].melt(var_name="Metric", value_name="Score")
-        fig = px.bar(metric_plot, x="Metric", y="Score", range_y=[0, 1], color="Metric", text_auto=".3f")
-        fig.update_layout(showlegend=False, height=350, margin=dict(l=10, r=10, t=20, b=20))
-        st.plotly_chart(fig, use_container_width=True)
     except Exception as exc:
         st.error("Could not calculate metrics from the supplied reference data.")
         st.exception(exc)
@@ -354,7 +381,4 @@ else:
     top_n = st.slider("Number of candidates to display", min_value=5, max_value=min(80, len(candidates)), value=20)
     top_view = candidates.head(top_n)[["Rank", "Molecule", "Group", efficiency_column, "Predicted classification"]].rename(columns={efficiency_column: "Predicted efficiency"})
     st.dataframe(top_view.style.format({"Predicted efficiency": "{:.2f}%"}), use_container_width=True, hide_index=True)
-    chart = px.bar(top_view.sort_values("Predicted efficiency"), x="Predicted efficiency", y="Molecule", orientation="h", color="Group", hover_data=["Rank", "Predicted classification"])
-    chart.update_layout(height=max(420, top_n * 25), margin=dict(l=10, r=10, t=20, b=20))
-    st.plotly_chart(chart, use_container_width=True)
     st.download_button("Download ranked candidates", candidates.to_csv(index=False).encode("utf-8"), "ranked_molecular_candidates.csv", "text/csv")
