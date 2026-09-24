@@ -128,7 +128,7 @@ def predict_frame(frame: pd.DataFrame) -> pd.DataFrame:
     efficiency = regressor.predict(frame)
     result = pd.DataFrame(
         {
-            "Predicted_Label": np.where(classification == 1, "Inhibitor", "Non-Inhibitor"),
+            "Predicted_Label": np.where(classification == 1, "High Inhibitor", "Low Inhibitor"),
             "Classification_Confidence_pct": confidence * 100,
             "Predicted_Individual_Efficiency": efficiency,
             "Predicted_Binary_Class": classification,
@@ -167,7 +167,7 @@ def render_prediction_card(result: pd.Series):
     label = result["Predicted_Label"]
     confidence = float(result["Classification_Confidence_pct"])
     efficiency = float(result["Predicted_Individual_Efficiency"])
-    color = "#198754" if label == "Inhibitor" else "#6c757d"
+    color = "#198754" if label == "High Inhibitor" else "#6c757d"
     st.markdown(
         f"""
         <div style='border:1px solid #d7dde5;border-left:8px solid {color};border-radius:10px;padding:1.1rem 1.25rem;background:#ffffff;margin:0.4rem 0 1rem 0;'>
@@ -248,7 +248,7 @@ if page == "Prediction":
             """
             **Project overview.** This application supports a machine-learning workflow for screening corrosion-inhibitor molecules. The underlying study assembled and quality-checked **80 molecules** from four chemical groups: Organic, Green Inhibitor, Ionic Liquid, and Inorganic. Inhibition Efficiency (**IE%**) is the continuous outcome of interest; molecules with IE% of at least 85% are treated as the high-inhibition class in the binary classification workflow.
 
-            **What the models do.** The Gradient Boosting classifier estimates whether an input is an **Inhibitor** or **Non-Inhibitor** and reports its probability for the predicted class. The Random Forest regressor estimates the molecule's individual IE% as a continuous value. Both models use the same 11 selected descriptors after the notebook's descriptor-selection and collinearity analysis: ionization potential, chemical hardness, electrophilicity index, dipole moment, molecular weight, aromatic-ring count, nitrogen count, oxygen count, sulfur count, fluorine count, and LogP.
+            **What the models do.** The Gradient Boosting classifier estimates whether an input is a **High Inhibitor** or **Low Inhibitor** and reports its probability for the predicted class. In this study, High Inhibitor corresponds to IE% ≥ 85%, while Low Inhibitor corresponds to IE% < 85%. The Random Forest regressor estimates the molecule's individual IE% as a continuous value. Both models use the same 11 selected descriptors after the notebook's descriptor-selection and collinearity analysis: ionization potential, chemical hardness, electrophilicity index, dipole moment, molecular weight, aromatic-ring count, nitrogen count, oxygen count, sulfur count, fluorine count, and LogP.
 
             **Recommended workflow.** Start with **Preloaded Molecule** to explore the study examples, use **Manual Entry** for a new descriptor profile, or choose **Batch CSV Upload** for several molecules. The result card gives the main verdict and efficiency estimate. The contribution table provides a compact feature-importance view to help interpret the prediction; it should be used as model guidance, not as experimental confirmation or a replacement for laboratory or molecular-dynamics validation.
             """
@@ -327,7 +327,7 @@ elif page == "Dataset Browser":
     st.write("The 80 reference molecules from the study dataset.")
     browser = reference_df.copy()
     browser["Individual Efficiency Value"] = browser.get("IE_pct", np.nan)
-    browser["Classification Label"] = np.where(browser.get("IE_binary", 0).astype(int) == 1, "Inhibitor", "Non-Inhibitor")
+    browser["Classification Label"] = np.where(browser.get("IE_binary", 0).astype(int) == 1, "High Inhibitor", "Low Inhibitor")
     group_filter = st.multiselect("Filter by group", sorted(browser["Group"].dropna().unique()), default=sorted(browser["Group"].dropna().unique()))
     browser = browser[browser["Group"].isin(group_filter)]
     view = browser[["Molecule", "Group", "Individual Efficiency Value", "Classification Label"]].copy()
