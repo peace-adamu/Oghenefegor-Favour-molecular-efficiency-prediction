@@ -375,7 +375,7 @@ else:
         efficiency_column = "Predicted_Individual_Efficiency"
     else:
         efficiency_column = "IE_pct_predicted"
-    candidates["Predicted classification"] = np.where(candidates.get("IE_binary", 0).astype(int) == 1, "Inhibitor", "Non-Inhibitor")
+    candidates["Predicted classification"] = np.where(candidates.get("IE_binary", 0).astype(int) == 1, "High Inhibitor", "Low Inhibitor")
     candidates = candidates.sort_values(efficiency_column, ascending=False).reset_index(drop=True)
     candidates.insert(0, "Rank", np.arange(1, len(candidates) + 1))
     top_n = st.slider("Number of candidates to display", min_value=5, max_value=min(80, len(candidates)), value=20)
